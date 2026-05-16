@@ -13,14 +13,50 @@ description: >-
 
 # Migrate to Bunosh
 
-Goal: collapse scattered automation (shell scripts, `package.json` scripts,
-Makefile/Justfile targets, node scripts) into **one `Bunoshfile.js`** where each
-former script is an exported function = a `bunosh` command.
+## Why migrate (read this first — it changes how you port)
+
+Migration has two goals, and they decide every judgement call below:
+
+1. **One place.** Every script — bash, `.sh`, `.js`, `.cjs`, `.mjs`, npm
+   scripts, Makefile/Justfile targets — ends up as an exported function in a
+   single `Bunoshfile.js`. No more hunting through `scripts/`, `bin/`, `tools/`,
+   and `package.json` to find what does what.
+2. **More readable.** The point is not to *wrap* the old scripts — it's to
+   **rewrite them as clean, compact JavaScript** using the Bunosh API. Bash
+   gets unreadable fast once there's branching, loops, JSON, or error handling;
+   the equivalent JS is shorter and clearer. A migration that just buries a
+   50-line bash blob inside one `` shell`...` `` template has failed goal 2.
+
+So the default action is **rewrite into idiomatic JS**, not transliterate.
+
+### The rewrite rule
+
+- **Small/medium scripts (< ~100 LOC), bash or JS:** rewrite the *logic* in
+  JavaScript using the Bunosh API. Bash conditionals/loops/`case`/`$?`,
+  argument-parsing, `jq`, `sed`/`awk` data wrangling, `curl` → become JS:
+  `if`/`for`/`fetch`/object access/array methods. `.js`/`.cjs`/`.mjs` scripts
+  are ported to use Bunosh helpers (`shell`, `fetch`, `say`, `ask`, `task`,
+  `Bun.file`) instead of `child_process`, `console.log`, `fs`, `node-fetch`.
+- **Keep `` shell`...` `` only for what it's good at:** invoking real external
+  tools — `git`, `docker`, `kubectl`, `npm`, `rsync`, compilers. The *control
+  flow and data handling around* those calls belongs in JS, not in the shell
+  string.
+- **Large/complex scripts (> ~100 LOC, or heavy domain logic):** still expose
+  them as a `bunosh` command, but don't force a risky line-by-line rewrite. Port
+  the entrypoint/orchestration to JS and either (a) split the body into
+  helper functions in the Bunoshfile, or (b) if it's genuinely big and stable,
+  keep it as a script the command calls — and tell the user it was left as-is
+  and why. Flag these explicitly rather than silently producing a sketchy port.
+
+Goal: collapse scattered automation into **one `Bunoshfile.js`** where each
+former script is an exported function = a `bunosh` command, written so a
+newcomer can read it.
 
 This skill assumes the naming/argument/failure rules from the
 `bunosh-fundamentals` skill. If that skill's content isn't already in context,
-read it first — the conversion below depends on it (especially the
-function-name → command mapping and the "tasks don't throw" model).
+read it first — the conversion below depends on it (the function-name → command
+mapping, the "tasks don't throw" model, and the fact that **a Bunoshfile is a
+normal ES module**: you can `import` npm packages and use Node/Bun APIs).
 
 ## Workflow
 
@@ -34,7 +70,8 @@ Find everything that should become a command:
 - `package.json` → `scripts` block
 - `*.sh`, `scripts/`, `bin/`, `tools/` shell scripts
 - `Makefile` / `makefile` targets, `Justfile`
-- standalone `*.js` / `*.mjs` automation scripts
+- standalone `*.js` / `*.cjs` / `*.mjs` automation scripts (note each one's
+  rough LOC — it decides rewrite vs keep-as-is, see "The rewrite rule")
 - CI files (`.github/workflows`, `.gitlab-ci.yml`) — these often reveal the
   *real* entry points and the env vars each step needs
 
@@ -70,8 +107,16 @@ the line-by-line equivalents and the common mistakes.
 
 Core principles while translating:
 
-- All shell goes in `` shell`...` `` template literals (multiline is fine).
-  `.env({...})` and `.cwd(path)` replace `export VAR=` and `cd`.
+- **Rewrite logic as JS; reserve `` shell`...` `` for external tools.** Branching,
+  loops, arg parsing, JSON/text manipulation → JavaScript. `git`/`docker`/`npm`/
+  `kubectl`/`rsync` invocations → `` shell`...` `` with `.env({...})` /
+  `.cwd(path)` replacing `export VAR=` / `cd`. The result should read like a
+  small program, not a shell script in disguise.
+- **Port `.js`/`.cjs`/`.mjs` to the Bunosh API:** `child_process` → `shell`;
+  `console.log` → `say`/`yell`; `fs` → `Bun.file()`/`Bun.write()`; `node-fetch`/
+  `axios` → global `fetch`; `process.argv` parsing → function params + options.
+  It is a normal ES module, so keep using real `import`s for genuine libraries
+  (date math, AWS SDK, etc.) — don't reimplement those.
 - Tasks **don't throw**. Replace `set -e` / `&&` chaining /
   `if [ $? -ne 0 ]` / try-catch-exit with either `task.stopOnFailures()` at the
   top of the function (the faithful "abort on first error" port) or explicit
@@ -79,10 +124,15 @@ Core principles while translating:
 - Replace `exit N` / `process.exit` with early `return`. Bunosh owns the exit
   code.
 - `echo` → `say()`; prominent banners → `yell()`; prompts → `await ask()`.
-- `curl` → `fetch()`; reading/writing files → `Bun.file()` / `Bun.write()` or
-  `writeToFile()`; `cp` → `copyFile()`.
-- Preserve behaviour, don't "improve" it silently. If the original aborts on
-  error, the port must too (`task.stopOnFailures()`).
+- `curl` → `fetch()`; `jq`/`sed`/`awk` on output → parse in JS
+  (`await res.json()`, `.split`, `.map`, `.filter`); `cp` → `copyFile()`.
+- Preserve behaviour, don't change what it does — but **do** make it more
+  readable: flatten nesting with early returns, name things, drop the bash
+  arg-parsing boilerplate. If the original aborts on error, the port must too
+  (`task.stopOnFailures()`).
+- Compactness check: if a ported function is materially longer or harder to
+  follow than the original, you're transliterating, not rewriting — step back
+  and express it the way you'd write it fresh in JS.
 
 ### 4. Assemble one Bunoshfile.js
 

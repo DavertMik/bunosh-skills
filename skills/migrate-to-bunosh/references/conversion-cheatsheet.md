@@ -1,7 +1,15 @@
 # Conversion Cheatsheet
 
-Line-by-line equivalents for porting scripts into a `Bunoshfile.js`. Read the
-relevant section, then translate. Sections:
+Line-by-line equivalents for porting scripts into a `Bunoshfile.js`.
+
+**Guiding principle:** these mappings are for *rewriting into idiomatic JS*, not
+wrapping. Express control flow and data handling in JavaScript; use
+`` shell`...` `` only to invoke external tools (`git`, `docker`, `npm`,
+`kubectl`, `rsync`, compilers). When a row says "keep in shell", that means the
+literal external command — not its surrounding logic. Aim for a result that's
+shorter and clearer than the original.
+
+Read the relevant section, then translate. Sections:
 
 1. [package.json scripts](#1-packagejson-scripts)
 2. [Bash / shell](#2-bash--shell)
@@ -79,7 +87,7 @@ export async function ci() {
 | `curl -s URL` | `await fetch('URL')` then `.json()` / `.text()` |
 | `curl -X POST -d ... ` | `fetch(url, { method:'POST', headers, body })` |
 | `jq '.field' file` | `const o = await Bun.file('file').json(); o.field` |
-| `grep`, `sed`, `awk` pipelines | keep in `` shell`...` `` if simple; otherwise do it in JS on `result.output` |
+| `grep`, `sed`, `awk` pipelines | prefer JS on `result.output` (`.split`/`.filter`/`.replace`/`.map`); only keep a trivial one-shot filter in `` shell`...` `` |
 
 Multiline shell is one template literal:
 
@@ -209,6 +217,9 @@ Never call `process.exit()`.
 
 ## 7. Common mistakes
 
+- **Wrapping instead of rewriting.** Dumping a multi-line bash body into one
+  `` shell`...` `` template "migrates" it but defeats the readability goal.
+  Rewrite the logic in JS; shell out only for external tools.
 - **Keeping the bash arg-parsing loop.** Delete it; use parameters/options.
 - **`try/catch` around `shell`.** It won't catch command failure. Use result
   checks or `task.stopOnFailures()`.

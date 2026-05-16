@@ -173,6 +173,26 @@ const out = await ai('Summarize these commits: ' + log.output, {
   - `ask('Features?', [...], { multiple: true })` → multi select
   - `ask('Password?', { type: 'password' })`, `{ editor: true }`
 
+### It's just an ES module — use real JavaScript
+
+The built-in helpers cover the common cases, but a `Bunoshfile.js` is a normal
+ES module. This matters most when rewriting `.js`/`.cjs`/`.mjs` scripts: you
+don't have to shell out for everything.
+
+- `import` any npm package or Node builtin: `import { S3 } from '@aws-sdk/client-s3'`,
+  `import { readFile } from 'node:fs/promises'`, `import path from 'node:path'`.
+- Under Bun, the `Bun` APIs are available: `Bun.file(p).text()/.json()/.exists()`,
+  `await Bun.write(p, data)` (also copies: `Bun.write(dst, Bun.file(src))`).
+- Define plain non-exported helper functions and module-level `const`s; only
+  `export`ed functions become commands.
+- Ordinary JS control flow, `async`/`await`, `Promise.all`, array methods —
+  prefer these over piping through `shell`. Reach for `` shell`...` `` to invoke
+  external tools, not to do logic.
+
+Read external state with `Bun.file`/`fs`; parse with `JSON.parse` or
+`await result.json()`; transform with `.map`/`.filter`. This is what makes the
+JS version shorter and clearer than the bash/node original.
+
 ## 5. `task` — group and label work
 
 `task(name, fn)` wraps work in a named, tracked unit. Use it to give a noisy
