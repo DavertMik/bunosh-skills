@@ -6,7 +6,10 @@
   "plugins": [
     {
       "name": "bunosh",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "DavertMik/bunosh-skills"
+      },
       "description": "Skills for working with Bunosh: core principles for authoring Bunoshfile.js, and a workflow to migrate bash/npm/Makefile/node scripts into a single Bunoshfile.",
       "version": "0.1.0",
       "homepage": "https://buno.sh",
