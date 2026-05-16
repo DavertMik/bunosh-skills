@@ -78,9 +78,36 @@ Find everything that should become a command:
 For each, note: what it does, its arguments/flags, env vars it reads, its
 working directory, and whether it must abort on first error.
 
-If there are many sources, briefly list the planned commands and namespaces and
-confirm with the user before writing the whole file — renaming later is cheap
-but agreeing up front avoids churn.
+#### What NOT to migrate
+
+Not every `package.json` script should move. A script that is **a single
+invocation of one external dev tool** is already one readable line — Bunosh adds
+nothing and migrating it just adds indirection. Leave these in `package.json`:
+
+- `"test": "playwright test"`, `"test:unit": "jest"`
+- `"dev": "next dev"`, `"dev": "astro dev"`, `"dev": "vite"`
+- `"build": "tsc -p ."`, `"lint": "eslint ."`, `"format": "prettier -w ."`
+- `"start": "node server.js"` — a bare runner with no logic around it
+
+**Migrate a script only when becoming a real command earns its keep**, i.e. it:
+
+- runs a project script file — `node scripts/x.js`, `bun tools/x.ts`,
+  `sh deploy.sh`, `./bin/x` — (these are the complex ones; rewrite per
+  "The rewrite rule"),
+- chains/composes multiple commands (`&&`, `;`, `|`, `npm-run-all`),
+- parses flags/positional args or reads/branches on env vars,
+- contains real logic, retries, conditionals, or cleanup.
+
+Rule of thumb: *one tool, no logic → leave it; a script file or composition →
+migrate it.* When in doubt, lean toward leaving trivial one-liners.
+
+Kept scripts and Bunosh coexist: a migrated command can still call a leftover
+one-liner with `` shell`npm run test:e2e` ``, and `bunosh export:scripts`
+(step 6) only touches its own entries, so the one-liners you kept stay intact.
+
+If there are many sources, briefly list which you'll migrate vs leave, plus the
+planned commands and namespaces, and confirm with the user before writing the
+whole file — renaming later is cheap but agreeing up front avoids churn.
 
 ### 2. Design the command surface
 
@@ -90,7 +117,9 @@ rule:
 - Group related scripts under a shared first word so they share a namespace:
   `db:migrate`, `db:seed`, `db:reset` come from `dbMigrate`, `dbSeed`,
   `dbReset`.
-- npm scripts usually map 1:1 (`"build"` → `export function build()`).
+- only the scripts that passed the "what NOT to migrate" filter — a composed
+  or script-file npm entry maps to one function (`"ci"` → `export function
+  ci()`); trivial one-tool entries stay in `package.json`.
 - A script that takes positional args → function parameters; a script parsing
   `--flags` (getopts / `process.argv` / `minimist`) → an `options = {}` object
   as the last parameter.

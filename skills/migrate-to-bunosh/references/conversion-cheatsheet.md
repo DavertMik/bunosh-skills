@@ -23,34 +23,38 @@ Read the relevant section, then translate. Sections:
 
 ## 1. package.json scripts
 
-Each script becomes an exported function. Script chaining and pre/post hooks
-become explicit calls.
+First filter (see SKILL.md "What NOT to migrate"): leave trivial one-tool
+entries in `package.json`; migrate only composed scripts and ones that run a
+script file. Only the migrated entries become exported functions; pre/post
+hooks and chaining become explicit calls.
 
 ```json
 { "scripts": {
-  "build": "webpack --mode production",
-  "prebuild": "rm -rf dist",
-  "test": "jest",
-  "ci": "npm run build && npm test"
+  "dev": "next dev",                       ← keep (one tool, no logic)
+  "lint": "eslint .",                      ← keep
+  "test": "playwright test",               ← keep
+  "prebuild": "rm -rf dist",               ← migrate (folds into build)
+  "build": "node scripts/build.mjs --prod",← migrate (script file)
+  "ci": "npm run lint && npm run build && npm test"  ← migrate (composition)
 }}
 ```
 
 ```js
 export async function build() {
-  await shell`rm -rf dist`;            // former prebuild, inlined
-  await shell`webpack --mode production`;
-}
-
-export async function test() {
-  await shell`jest`;
+  await shell`rm -rf dist`;              // former prebuild, inlined
+  await shell`node scripts/build.mjs --prod`;
 }
 
 export async function ci() {
-  task.stopOnFailures();               // && means abort on failure
+  task.stopOnFailures();                 // && means abort on failure
+  await shell`npm run lint`;             // kept one-liners called as-is
   await build();
-  await test();
+  await shell`npm test`;
 }
 ```
+
+Note `ci` calls the kept `lint`/`test` via `npm run` rather than reimplementing
+`eslint`/`playwright` — the trivial entries stay authoritative.
 
 - `npm-run-all` / `concurrently` parallel scripts → `Promise.all([...])`.
 - `cross-env FOO=bar cmd` → `` shell`cmd`.env({ FOO: 'bar' }) ``.

@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "We're tired of juggling npm scripts. Here's our package.json. Move all of these scripts into a single Bunoshfile.js so we can run them with `bunosh`. Keep the behaviour identical — the `ci` script must still bail out the moment lint or build or test fails.",
-      "expected_output": "A single Bunoshfile.js with exported functions build, lint, test, ci, startDev (start:dev), deploy. prebuild logic inlined into build. ci uses task.stopOnFailures() to preserve && behaviour. start:dev uses .env({NODE_ENV:'development'}). File registers cleanly with bunosh.",
+      "prompt": "We're tired of juggling npm scripts. Here's our package.json. Move the scripts worth moving into a single Bunoshfile.js so we can run them with `bunosh`, but don't bother wrapping the trivial one-tool ones. Keep behaviour identical — the `ci` script must still bail out the moment lint or build or test fails.",
+      "expected_output": "Bunoshfile.js migrates ONLY the composed/script-file scripts: ci (composition, uses task.stopOnFailures()), deploy (build && rsync composition), and build (folds in prebuild rm -rf dist). Trivial one-tool entries (lint=eslint, test=jest, start:dev) are LEFT in package.json, not turned into bunosh functions. ci calls kept lint/test via `npm run` rather than reimplementing them. File registers cleanly with bunosh.",
       "files": ["fixtures/eval-1-npm-scripts/package.json"]
     },
     {
