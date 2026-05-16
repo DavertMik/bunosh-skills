@@ -48,7 +48,7 @@ different agent.
 
 ```bash
 git clone https://github.com/DavertMik/bunosh-skills.git
-cp -r bunosh-skills/bunosh-fundamentals bunosh-skills/migrate-to-bunosh ~/.claude/skills/
+cp -r bunosh-skills/skills/* ~/.claude/skills/
 ```
 
 After any method, restart the session (or run `/doctor`) so the skills load.
@@ -58,15 +58,17 @@ After any method, restart the session (or run `/doctor`) so the skills load.
 ```
 bunosh-skills/
 ├── .claude-plugin/
-│   └── marketplace.json
-├── bunosh-fundamentals/
-│   └── SKILL.md
-└── migrate-to-bunosh/
-    ├── SKILL.md
-    ├── references/
-    │   └── conversion-cheatsheet.md
-    └── evals/
-        └── evals.json
+│   ├── marketplace.json
+│   └── plugin.json
+└── skills/
+    ├── bunosh-fundamentals/
+    │   └── SKILL.md
+    └── migrate-to-bunosh/
+        ├── SKILL.md
+        ├── references/
+        │   └── conversion-cheatsheet.md
+        └── evals/
+            └── evals.json
 ```
 
 `migrate-to-bunosh` depends conceptually on `bunosh-fundamentals` — install both.
