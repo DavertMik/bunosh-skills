@@ -136,28 +136,62 @@ Core principles while translating:
 
 ### 4. Assemble one Bunoshfile.js
 
-Structure:
+Layout, top to bottom: globals → exported commands (the readable "table of
+contents") → helper functions.
 
 ```js
 const { shell, fetch, writeToFile, copyFile, task, ai } = global.bunosh;
 const { say, ask, yell } = global.bunosh;
+
+const REGISTRY = 'docker.io/acme';      // module-level constants near the top
 
 /**
  * <first line of help, from what the original script did>
  * @param {string} env - ...
  */
 export async function deploy(env = 'staging', options = { force: false }) {
-  task.stopOnFailures();            // only if the original aborted on error
-  // ...translated body...
+  task.stopOnFailures();                // only if the original aborted on error
+  const image = await buildImage(env);  // command stays high-level
+  await pushImage(image);
+  await rolloutWait(env, options);
 }
+
+// ── helpers ──────────────────────────────────────────────
+// non-exported, below all commands; this is where the complexity lives
+async function buildImage(env) { /* ... */ }
+async function pushImage(image) { /* ... */ }
+async function rolloutWait(env, options) { /* ... */ }
 ```
 
 - One exported function per former script.
-- JSDoc on every function (first line → command list, full block → `--help`).
-  Reconstruct it from comments/usage text in the original script.
-- Shared logic → non-exported helper functions in the same file.
+- JSDoc on every exported function (first line → command list, full block →
+  `--help`). Reconstruct it from comments/usage text in the original script.
+- **Keep each command short; push complexity into helpers at the end of the
+  file.** A reader scanning the top should see *what* the project does without
+  wading through *how*. When a ported script has multiple phases, the command
+  body should be a handful of named helper calls; the phases become helper
+  functions placed after all the commands. Don't inline a 60-line procedure.
 - No explanatory code comments unless the user asks — JSDoc + names carry
   intent. Prefer early `return` over `if/else` nesting.
+
+**Split by namespace when it gets long.** One consolidated file is the goal, but
+once it grows past ~1000 lines it stops being readable — at that point split by
+area into `Bunoshfile.<ns>.js` files (Bunosh's namespace feature): a file named
+`Bunoshfile.db.js` puts every exported function under the `db:` namespace
+(`export function migrate()` → `bunosh db:migrate`). Rules when you do this:
+
+- Group by cohesive area, matching the namespaces you designed in step 2
+  (`Bunoshfile.deploy.js`, `Bunoshfile.db.js`, `Bunoshfile.ci.js`).
+- In a namespaced file, name functions **plainly** — the filename already
+  supplies the namespace, so use `migrate`, `seed`, `reset`, not `dbMigrate`
+  (and avoid camelCase there; see the namespace note in `bunosh-fundamentals`).
+- Each file keeps the same commands-top / helpers-bottom shape.
+- Shared helpers used by multiple namespace files: keep them in the main
+  `Bunoshfile.js` or a plain imported module — only `export`ed functions become
+  commands, so a non-exported/imported helper won't pollute the command list.
+
+Prefer a single `Bunoshfile.js` until length actually forces the split; don't
+pre-shard a small project.
 
 ### 5. Verify
 
@@ -227,13 +261,18 @@ resulting `scripts` block.
 
 ## Output contract
 
-The deliverable is a single valid `Bunoshfile.js` that:
+The deliverable is a valid `Bunoshfile.js` (or a set of `Bunoshfile.<ns>.js`
+files if size forced a split) that:
 
 - has one exported function per migrated script,
+- is rewritten as readable JS — commands short and high-level at the top,
+  complexity in helper functions at the bottom, `` shell`...` `` only for
+  external tools,
 - registers cleanly (`bunosh` lists them, `--help` works),
 - preserves the original error/exit behaviour,
 - carries JSDoc-derived help,
-- contains no leftover bash/process-exit/try-catch-exit patterns.
+- contains no leftover bash/process-exit/try-catch-exit patterns,
+- stays under ~1000 lines per file (split by namespace otherwise).
 
 Plus, for npm projects, a `package.json` whose `scripts` were updated via
 `bunosh export:scripts` so existing `npm run <x>` / CI invocations keep working.

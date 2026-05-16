@@ -254,9 +254,16 @@ let Bunosh own the exit code.
 ## 7. Project layout & invocation
 
 - Default file: `Bunoshfile.js` in the working directory.
-- `Bunoshfile.<ns>.js` registers every command under the `ns:` namespace
-  (e.g. `Bunoshfile.db.js` → `bunosh db:migrate`). Use this to split large task
-  sets across files.
+- `Bunoshfile.<ns>.js` registers **every exported function** in that file under
+  the `ns:` namespace. The filename supplies the namespace, so name the
+  functions plainly — don't prefix them again:
+  - `Bunoshfile.db.js` with `export function migrate()` → `bunosh db:migrate`,
+    `export function reset()` → `bunosh db:reset`.
+  - Use single-word / simple function names here. A camelCase name in a
+    namespaced file is still kebab-split and can drop its first word
+    unexpectedly (`migrateReset` in `Bunoshfile.db.js` → `db:reset`, not
+    `db:migrate-reset`). One word per function avoids the surprise.
+  Use this to split a large `Bunoshfile.js` into per-area files.
 - `bunosh` with no args lists all commands. `bunosh <cmd> --help` shows details.
 - `bunosh --bunoshfile path/to/File.js <cmd>` or `BUNOSHFILE=...` to pick a file.
 - `bunosh init` scaffolds a starter file; `bunosh edit` opens it;
@@ -275,5 +282,15 @@ is written:
   around early returns).
 - One exported function per logical command; factor shared logic into
   non-exported helpers.
+- **Commands at the top, helpers at the bottom.** Keep each exported command
+  short and high-level — it should read as the *what*. Push the *how* (complex
+  steps, parsing, retries) into non-exported helper functions placed at the end
+  of the file, below all the commands. The top of the file then reads as a
+  table of contents of what the project can do.
 - Add a JSDoc block to every exported function so `--help` is meaningful.
 - Reach for `task()` to label multi-step sequences, not single commands.
+- **Split when it gets long.** Past ~1000 lines, a single `Bunoshfile.js` stops
+  being readable. Move cohesive groups into `Bunoshfile.<ns>.js` files (one per
+  area: `Bunoshfile.db.js`, `Bunoshfile.deploy.js`, ...). Each file keeps the
+  commands-top/helpers-bottom shape; commands there are automatically namespaced
+  `ns:`. This is the primary tool for keeping a large task suite navigable.
