@@ -1,0 +1,20 @@
+{
+  "name": "bunosh-skills",
+  "owner": {
+    "name": "DavertMik"
+  },
+  "plugins": [
+    {
+      "name": "bunosh",
+      "source": ".",
+      "description": "Skills for working with Bunosh: core principles for authoring Bunoshfile.js, and a workflow to migrate bash/npm/Makefile/node scripts into a single Bunoshfile.",
+      "version": "0.1.0",
+      "homepage": "https://buno.sh",
+      "repository": "https://github.com/DavertMik/bunosh-skills",
+      "license": "MIT",
+      "keywords": ["bunosh", "task-runner", "migration", "bash", "npm-scripts"],
+      "strict": false,
+      "skills": "."
+    }
+  ]
+}

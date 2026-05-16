@@ -10,29 +10,55 @@ JavaScript functions into CLI commands.
 
 ## Installation
 
-These skills are plain folders containing a `SKILL.md`. Install them by copying
-into a directory the agent reads skills from.
+Pick whichever fits your setup. All three install both skills.
 
-**Claude Code (project-level):**
+### 1. Claude Code plugin (recommended)
 
-```bash
-git clone <this-repo> bunosh-skills
-cp -r bunosh-skills/bunosh-fundamentals  .claude/skills/
-cp -r bunosh-skills/migrate-to-bunosh    .claude/skills/
+This repo is a Claude Code plugin marketplace. Inside Claude Code:
+
+```text
+/plugin marketplace add DavertMik/bunosh-skills
+/plugin install bunosh@bunosh-skills
 ```
 
-**Claude Code (user-level, available in every project):**
+Updates: `/plugin marketplace update bunosh-skills`.
+
+### 2. `skills.sh`
+
+Cross-agent installer ([skills.sh](https://skills.sh)) — works for Claude Code,
+Cursor, Codex, Copilot, and more:
 
 ```bash
-cp -r bunosh-skills/* ~/.claude/skills/
+npx skills add DavertMik/bunosh-skills
 ```
 
-Restart the session (or run `/doctor`) so the skills are picked up.
+### 3. `gh skill install`
+
+Using the GitHub CLI skill extension (install per skill, user scope):
+
+```bash
+gh skill install DavertMik/bunosh-skills bunosh-fundamentals --agent claude-code --scope user
+gh skill install DavertMik/bunosh-skills migrate-to-bunosh   --agent claude-code --scope user
+```
+
+Drop `--scope user` for project-local install, or `--agent <name>` to target a
+different agent.
+
+### Manual
+
+```bash
+git clone https://github.com/DavertMik/bunosh-skills.git
+cp -r bunosh-skills/bunosh-fundamentals bunosh-skills/migrate-to-bunosh ~/.claude/skills/
+```
+
+After any method, restart the session (or run `/doctor`) so the skills load.
 
 ## Layout
 
 ```
-skills/
+bunosh-skills/
+├── .claude-plugin/
+│   └── marketplace.json
 ├── bunosh-fundamentals/
 │   └── SKILL.md
 └── migrate-to-bunosh/
