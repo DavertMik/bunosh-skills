@@ -49,6 +49,8 @@ export async function ci() {
 - `&&` chains → sequential `await` + `task.stopOnFailures()`.
 - `;` chains → sequential `await` without stopOnFailures.
 - A script that just calls another script → call the exported function directly.
+- After migrating, run `bunosh export:scripts` to rewrite the `scripts` block as
+  `"<cmd>": "bunosh <cmd>"` so `npm run <cmd>` still works (see SKILL.md step 6).
 
 ## 2. Bash / shell
 

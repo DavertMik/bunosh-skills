@@ -122,14 +122,58 @@ A syntax error or a non-object last parameter will show up here. Spot-check one
 representative command if it's safe to run (dry-run / `--help` only for
 destructive ones).
 
-### 6. Wire it up & report
+### 6. Export commands back into package.json
 
-- Offer to run `bunosh export:scripts` so the old `npm run <x>` calls still work
-  (they become `bunosh <x>` under the hood) — useful for a gradual migration.
+This is a standard part of the migration, not an optional extra: a migrated
+project should still respond to `npm run <x>` and whatever CI/teammates already
+call. Bunosh ships a command for exactly this:
+
+```bash
+bunosh export:scripts
+```
+
+It rewrites the `scripts` section of `package.json` so every generated command
+gets an entry pointing at Bunosh:
+
+```jsonc
+{
+  "scripts": {
+    "build": "bunosh build",
+    "test": "bunosh test",
+    "ci": "bunosh ci",
+    "deploy": "bunosh deploy",
+    "backup:db": "bunosh backup:db"
+  }
+}
+```
+
+So `npm run build` (or `yarn build` / `pnpm test`) now dispatches into the
+Bunoshfile. Notes and caveats to apply:
+
+- Run it **from the directory containing both `Bunoshfile.js` and
+  `package.json`** — it needs both; it errors out otherwise.
+- It is destructive to the `scripts` block: it removes prior `bunosh`-prefixed
+  entries and merges the regenerated set. Before running it on a project that
+  has hand-written non-bunosh scripts, confirm with the user and/or note that
+  those entries map 1:1 to the new commands (they were just migrated, so the old
+  `node scripts/foo.js` lines are now redundant and being replaced by
+  `bunosh foo`).
+- If there is no `package.json` (pure shell/Make project), skip this step and
+  say so — `export:scripts` only makes sense for npm projects.
+- Namespaced commands keep their colon (`backup:db` → `"backup:db": "bunosh
+  backup:db"`), which is a valid npm script name and is run as
+  `npm run backup:db`.
+
+Run it as part of the migration unless the user opted out, then show the
+resulting `scripts` block.
+
+### 7. Report
+
 - Tell the user which old files are now redundant (don't delete them unless
-  asked).
+  asked) — old `.sh`, `scripts/*.js`, Makefile targets superseded by commands.
 - Summarize the command surface: a short table of
-  `old script → bunosh command`.
+  `old script → bunosh command` (and the matching `npm run` alias if
+  `export:scripts` was run).
 
 ## Output contract
 
@@ -140,6 +184,9 @@ The deliverable is a single valid `Bunoshfile.js` that:
 - preserves the original error/exit behaviour,
 - carries JSDoc-derived help,
 - contains no leftover bash/process-exit/try-catch-exit patterns.
+
+Plus, for npm projects, a `package.json` whose `scripts` were updated via
+`bunosh export:scripts` so existing `npm run <x>` / CI invocations keep working.
 
 Plus a brief mapping table and a note on redundant files. Never delete or
 overwrite the original scripts unless the user explicitly asks.
