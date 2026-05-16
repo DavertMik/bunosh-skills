@@ -1,0 +1,259 @@
+---
+name: bunosh-fundamentals
+description: >-
+  Core principles for authoring Bunosh task files. Use this skill whenever the
+  user is writing, editing, reviewing, or debugging a Bunoshfile.js (or
+  Bunoshfile.<namespace>.js), runs `bunosh <command>`, asks why a bunosh command
+  isn't showing up or its arguments/options aren't parsed as expected, or wants
+  to know how exported functions become CLI commands. Trigger this even when the
+  user just says "add a task", "make a bunosh command", or pastes a Bunoshfile —
+  Bunosh has non-obvious naming and argument rules that are easy to get wrong
+  without this skill.
+---
+
+# Bunosh Fundamentals
+
+Bunosh turns plain JavaScript functions into CLI commands. There is no DSL: a
+`Bunoshfile.js` is an ES module, every exported function becomes a command, and
+its parameters become arguments and options. Built-in helpers (`shell`, `fetch`,
+`say`, `ask`, `task`, ...) are available as globals via `global.bunosh`.
+
+The rules below are the ones that are *not* guessable. Get these right and the
+rest is ordinary JavaScript.
+
+## 1. Functions → commands (naming is non-obvious)
+
+The command name is derived from the function name by splitting at the **first**
+capital letter. The first segment becomes a namespace, the rest is kebab-cased
+after a single colon. There is never more than one colon.
+
+| Function | Command | Notes |
+|----------|---------|-------|
+| `build` | `bunosh build` | single word → lowercased |
+| `deployApp` | `bunosh deploy:app` | first cap → `:` |
+| `gitPush` | `bunosh git:push` | |
+| `npmInstall` | `bunosh npm:install` | |
+| `buildAndDeploy` | `bunosh build:and-deploy` | only first cap is the `:`, rest is `-` |
+| `dbMigrateReset` | `bunosh db:migrate-reset` | |
+
+Implication: to put several commands under one namespace, **prefix the function
+names with the same first word** (`dbMigrate`, `dbSeed`, `dbReset` →
+`db:migrate`, `db:seed`, `db:reset`). Only `export`ed functions become commands;
+helpers can be plain non-exported functions in the same file.
+
+## 2. Parameters → arguments and options
+
+Positional parameters become CLI arguments. The presence and kind of a default
+value decides whether the argument is required:
+
+```js
+export async function deploy(env, tag = 'latest', region = null) {}
+```
+
+| Parameter form | CLI behaviour |
+|----------------|---------------|
+| no default (`env`) | **required** argument: `bunosh deploy <env>` |
+| default value (`tag = 'latest'`) | optional, falls back to the default |
+| `= null` | optional, no default shown |
+
+The **last** parameter, if it defaults to an object literal, becomes
+`--options`. Each key is a flag:
+
+```js
+export async function deploy(env, options = { force: false, replicas: 3, tag: null }) {}
+```
+
+| Option default | CLI form | In function |
+|----------------|----------|-------------|
+| `false` or `null` | boolean flag `--force` | `options.force === true` when passed |
+| any other value | `--replicas [value]` (default kept) | `options.replicas` is a string when passed on CLI |
+
+Flag names are dasherized and map back to camelCase: CLI `--dry-run` →
+`options.dryRun`. Values passed on the command line arrive as **strings** —
+coerce them (`Number(options.replicas)`) when you need a number.
+
+Usage of the example above:
+
+```bash
+bunosh deploy production --force --replicas 5 --tag v1.2.3
+```
+
+## 3. JSDoc → help text
+
+The block comment directly above the function is its description. The first line
+is shown in the command list; the whole comment shows in `bunosh <cmd> --help`.
+Document params with `@param` so the generated help is useful:
+
+```js
+/**
+ * Deploy the app to an environment.
+ * @param {string} env - Target environment (staging|production)
+ * @param {object} options
+ * @param {boolean} [options.force=false] - Skip confirmation
+ */
+export async function deploy(env, options = { force: false }) {}
+```
+
+## 4. Built-in tasks
+
+Pull helpers from `global.bunosh` at the top of the file (globals are used
+instead of imports so the single-file binary works everywhere):
+
+```js
+const { shell, fetch, writeToFile, copyFile, task, ai } = global.bunosh;
+const { say, ask, yell } = global.bunosh;
+```
+
+### `shell` — run commands (use this for everything shell)
+
+`shell` is a tagged template. It streams output live, works cross-platform on
+Bun, and falls back to Node `child_process` off Bun. `exec` and `$` are
+**deprecated aliases of `shell`** kept for backward compatibility — prefer
+`shell` in new code.
+
+```js
+await shell`npm ci`;
+await shell`
+  npm run build
+  npm run bundle
+`.env({ NODE_ENV: 'production' }).cwd('/srv/app');
+```
+
+`.env(obj)` and `.cwd(path)` are chainable.
+
+### TaskResult — tasks don't throw
+
+Every `shell`/`fetch`/`task` call resolves to a `TaskResult`. **It never throws
+on a failed command** — you inspect it:
+
+```js
+const res = await shell`npm test`;
+res.status        // 'success' | 'fail' | 'warning'
+res.output        // combined output / returned value
+res.hasFailed     // true when status === 'fail'
+res.hasSucceeded
+res.hasWarning
+await res.json()  // structured: { stdout, stderr, exitCode, lines }
+```
+
+This is the single biggest behavioural difference from bash/node scripts: a
+failing command does **not** abort the function by itself. See §6.
+
+### `fetch`, file ops, `ai`
+
+```js
+const r = await fetch('https://api.example.com/health');
+if (!r.ok) { yell(`down: ${r.status}`); return; }
+
+writeToFile('CHANGELOG.md', (line) => {
+  line`# v${version}`;
+  line``;
+  line.fromFile('CHANGELOG.md');   // append previous contents
+});
+
+copyFile('template.env', '.env');
+
+const out = await ai('Summarize these commits: ' + log.output, {
+  summary: 'one paragraph',
+  breaking: 'list of breaking changes',
+});                                 // returns an object keyed by your schema
+```
+
+`ai` needs `AI_MODEL` plus a provider key (`OPENAI_API_KEY` /
+`ANTHROPIC_API_KEY` / `GROQ_API_KEY`) in the environment.
+
+### I/O
+
+- `say(...)` — normal output.
+- `yell(text)` — big ASCII-art banner for the one message that matters.
+- `ask(question, default?, options?)` — prompt. Smart by type:
+  - `ask('Name?', 'app')` → text with default
+  - `ask('Proceed?', true)` → yes/no
+  - `ask('Env?', ['dev','prod'])` → single select
+  - `ask('Features?', [...], { multiple: true })` → multi select
+  - `ask('Password?', { type: 'password' })`, `{ editor: true }`
+
+## 5. `task` — group and label work
+
+`task(name, fn)` wraps work in a named, tracked unit. Use it to give a noisy
+sequence one clear label and one success/failure line; nested tasks attach to
+their parent.
+
+```js
+await task('Build image', async () => {
+  await shell`docker build -t app .`;
+  await shell`docker push app`;
+});
+```
+
+`task.try(fn)` (or `task.try(name, fn)`) runs silently and returns a boolean —
+ideal for probes:
+
+```js
+const dbUp = await task.try(() => shell`nc -z localhost 5432`);
+if (!dbUp) { say('db down, using fallback'); }
+```
+
+Output control: `task.silent(fn)` runs one task without output;
+`task.silence()` / `task.prints()` toggle output globally.
+
+Run independent work in parallel with `Promise.all`:
+
+```js
+await Promise.all([
+  shell`npm run build:web`,
+  shell`npm run build:api`,
+]);
+```
+
+## 6. Failure & exit-code model (read this before "fixing" error handling)
+
+Because tasks don't throw, error handling is **result inspection + early
+return**, not try/catch and not `process.exit`:
+
+```js
+const build = await shell`npm run build`;
+if (build.hasFailed) { yell('build failed'); return; }
+await shell`npm run deploy`;
+```
+
+Mode controls:
+
+- **Default**: a failed task is recorded; execution **continues**; the process
+  exits `1` at the end if anything failed.
+- `task.stopOnFailures()` — abort immediately with exit `1` on the first
+  failure. This is the "behave like `set -e` bash / a normal node script" knob;
+  call it at the top of a function that should be all-or-nothing.
+- `task.ignoreFailures()` — continue and exit `0` regardless. Good for
+  best-effort cleanup commands.
+- Under a test runner / `NODE_ENV=test`, exit code is forced to `0`.
+
+`return` early to stop a command; never call `process.exit()` in a Bunoshfile —
+let Bunosh own the exit code.
+
+## 7. Project layout & invocation
+
+- Default file: `Bunoshfile.js` in the working directory.
+- `Bunoshfile.<ns>.js` registers every command under the `ns:` namespace
+  (e.g. `Bunoshfile.db.js` → `bunosh db:migrate`). Use this to split large task
+  sets across files.
+- `bunosh` with no args lists all commands. `bunosh <cmd> --help` shows details.
+- `bunosh --bunoshfile path/to/File.js <cmd>` or `BUNOSHFILE=...` to pick a file.
+- `bunosh init` scaffolds a starter file; `bunosh edit` opens it;
+  `bunosh export:scripts` mirrors commands into `package.json` `scripts`.
+- `bunosh -e "say('hi')"` (or heredoc / stdin) runs inline JavaScript with all
+  globals available — handy in CI without a committed file.
+
+## Authoring conventions
+
+When writing or editing a Bunoshfile, produce code that matches how Bunosh code
+is written:
+
+- No comments unless the user asks for them — function names and JSDoc carry
+  intent.
+- Prefer early `return` over `if/else` nesting (Bunosh's failure model is built
+  around early returns).
+- One exported function per logical command; factor shared logic into
+  non-exported helpers.
+- Add a JSDoc block to every exported function so `--help` is meaningful.
+- Reach for `task()` to label multi-step sequences, not single commands.

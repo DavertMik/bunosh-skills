@@ -1,0 +1,11 @@
+{
+  "skill_name": "bunosh-fundamentals",
+  "evals": [
+    {
+      "id": 4,
+      "prompt": "I have a Bunoshfile.js already. Add a command that resets the database. It should appear as `bunosh db:reset`, take a required environment name argument, and accept a `--force` flag plus a `--keep-users` flag and a `--timeout` option that defaults to 30 (seconds). When force isn't passed it should ask for confirmation before dropping anything. It must abort immediately if any step fails.",
+      "expected_output": "An exported function named dbReset (so the command is db:reset) with signature like dbReset(env, options = { force: false, keepUsers: false, timeout: 30 }). env has no default (required arg). JSDoc present. Uses task.stopOnFailures(). When !options.force, uses await ask(...) for confirmation and early-returns on no. timeout coerced with Number() if used numerically. No process.exit; early return instead.",
+      "files": []
+    }
+  ]
+}
