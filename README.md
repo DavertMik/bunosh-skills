@@ -18,10 +18,11 @@ This repo is a Claude Code plugin marketplace. Inside Claude Code:
 
 ```text
 /plugin marketplace add DavertMik/bunosh-skills
-/plugin install bunosh@bunosh-skills
+/plugin install bunosh@bunosh-plugins
 ```
 
-Updates: `/plugin marketplace update bunosh-skills`.
+Updates: `/plugin marketplace update bunosh-plugins`. Skills install
+namespaced as `bunosh:bunosh-fundamentals` and `bunosh:migrate-to-bunosh`.
 
 ### 2. `skills.sh`
 
@@ -58,17 +59,23 @@ After any method, restart the session (or run `/doctor`) so the skills load.
 ```
 bunosh-skills/
 ├── .claude-plugin/
-│   ├── marketplace.json
-│   └── plugin.json
-└── skills/
-    ├── bunosh-fundamentals/
-    │   └── SKILL.md
-    └── migrate-to-bunosh/
-        ├── SKILL.md
-        ├── references/
-        │   └── conversion-cheatsheet.md
-        └── evals/
-            └── evals.json
+│   └── marketplace.json          # lists the "bunosh" plugin
+├── skills/                       # canonical skill sources
+│   ├── bunosh-fundamentals/
+│   │   └── SKILL.md
+│   └── migrate-to-bunosh/
+│       ├── SKILL.md
+│       ├── references/
+│       │   └── conversion-cheatsheet.md
+│       └── evals/
+│           └── evals.json
+└── plugins/
+    └── bunosh/
+        ├── .claude-plugin/
+        │   └── plugin.json
+        └── skills/               # symlinks → ../../../skills/*
+            ├── bunosh-fundamentals
+            └── migrate-to-bunosh
 ```
 
 `migrate-to-bunosh` depends conceptually on `bunosh-fundamentals` — install both.
