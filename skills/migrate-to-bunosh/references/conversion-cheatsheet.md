@@ -88,7 +88,7 @@ Note `ci` calls the kept `lint`/`test` via `npm run` rather than reimplementing
 | heredoc `cat <<EOF > f` | `writeToFile('f', line => { line\`...\`; })` |
 | `cp a b` | `copyFile('a', 'b')` or `Bun.write('b', Bun.file('a'))` |
 | `rm -rf x` | keep as `` await shell`rm -rf x` `` (fine to shell out) |
-| `curl -s URL` | `await fetch('URL')` then `.json()` / `.text()` |
+| `curl -s URL` | `const r = await fetch('URL'); const data = await r.json()` (`r` is a `TaskResult`, not a `Response`; `r.output` is the raw body string) |
 | `curl -X POST -d ... ` | `fetch(url, { method:'POST', headers, body })` |
 | `jq '.field' file` | `const o = await Bun.file('file').json(); o.field` |
 | `grep`, `sed`, `awk` pipelines | prefer JS on `result.output` (`.split`/`.filter`/`.replace`/`.map`); only keep a trivial one-shot filter in `` shell`...` `` |

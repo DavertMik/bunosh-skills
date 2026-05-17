@@ -133,7 +133,7 @@ res.output        // combined output / returned value
 res.hasFailed     // true when status === 'fail'
 res.hasSucceeded
 res.hasWarning
-await res.json()  // structured: { stdout, stderr, exitCode, lines }
+await res.json()  // shell: { stdout, stderr, exitCode, lines } · fetch: parsed JSON body
 ```
 
 This is the single biggest behavioural difference from bash/node scripts: a
@@ -141,9 +141,17 @@ failing command does **not** abort the function by itself. See §6.
 
 ### `fetch`, file ops, `ai`
 
+`fetch` returns a **`TaskResult`**, not a DOM `Response`. There is no `.ok`
+or numeric `.status` on it — use `res.hasFailed` (a non-2xx response resolves
+to a failed `TaskResult`). Read the body with **`await res.json()`** (parses
+the JSON body) or `res.text()`; `res.output` is the raw streamed body as a
+string. Do **not** call `.json()` on a raw `Response` you fetched yourself
+through the helper — the body is consumed while streaming output.
+
 ```js
 const r = await fetch('https://api.example.com/health');
-if (!r.ok) { yell(`down: ${r.status}`); return; }
+if (r.hasFailed) { yell(`down: ${r.output}`); return; }
+const body = await r.json();          // parsed JSON; res.output is the raw text
 
 writeToFile('CHANGELOG.md', (line) => {
   line`# v${version}`;
