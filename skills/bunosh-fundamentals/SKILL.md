@@ -329,11 +329,28 @@ is written:
     });
   }
   ```
-- **Commands at the top, helpers at the bottom.** Keep each exported command
-  short and high-level — it should read as the *what*. Push the *how* (complex
-  steps, parsing, retries) into non-exported helper functions placed at the end
-  of the file, below all the commands. The top of the file then reads as a
-  table of contents of what the project can do.
+- **Commands at the top, helpers at the bottom — rely on hoisting.** Keep each
+  exported command short and high-level — it should read as the *what*. Push the
+  *how* (complex steps, parsing, retries) into non-exported helpers placed at
+  the **very end** of the file, below all the commands. The top of the file then
+  reads as a table of contents of what the project can do. Write those helpers
+  as `function` **declarations**, not `const fn = () => {}` arrow expressions:
+  declarations are hoisted, so commands at the top can call helpers defined at
+  the bottom regardless of order. Arrow/`const` helpers are *not* hoisted and
+  must appear before their first use, which forces helpers above commands and
+  breaks the commands-first layout.
+
+  ```js
+  // top: exported commands, calling helpers defined far below
+  export async function release(version) {
+    const notes = await collectNotes(version);   // ok: hoisted declaration
+    await publish(version, notes);
+  }
+
+  // bottom: non-exported helper declarations
+  async function collectNotes(version) { /* ... */ }
+  async function publish(version, notes) { /* ... */ }
+  ```
 - Add a JSDoc block to every exported function so `--help` is meaningful.
 - Reach for `task()` to label multi-step sequences, not single commands.
 - **Split when it gets long.** Past ~1000 lines, a single `Bunoshfile.js` stops
