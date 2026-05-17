@@ -290,6 +290,45 @@ is written:
   around early returns).
 - One exported function per logical command; factor shared logic into
   non-exported helpers.
+- **No pass-through wrappers — commands are just functions, call them
+  directly.** Don't create a `fooRun(...)`/`doFoo(...)` twin whose only job is
+  to be called by the exported `foo` and by some other function. An exported
+  command is an ordinary async function: call `foo()` straight from another
+  command or helper. Only split out a helper when it has *its own* distinct
+  responsibility — not to dodge "calling a command". This removes a whole layer
+  of boilerplate and keeps the file compact.
+
+  ```js
+  // ❌ wrapper twin: releasePullRun exists only so two callers can reach it
+  async function prepareContent() {
+    await docsSyncRun(false);
+    await docsUnifiedApiRun(false);
+    await releasePullRun(5, true);
+  }
+  export async function releasePull(pages = 5) {
+    stopOnFailures();
+    await releasePullRun(Math.max(1, Number(pages) || 5), false);
+  }
+  async function releasePullRun(pages, soft) { /* real work */ }
+
+  // ✅ the command IS the function — call it directly
+  async function prepareContent() {
+    await docsSync();
+    await docsUnifiedApi();
+    await releasePull();
+  }
+  /**
+   * Pull releases from the CodeceptJS GitHub repo into release.md.
+   * @param {number} [pages=5] - Pages to fetch (3 releases per page).
+   */
+  export async function releasePull(pages = 5) {
+    stopOnFailures();
+    const count = Math.max(1, Number(pages) || 5);
+    await task(`Fetch releases from ${RELEASES_REPO}`, async () => {
+      releases = await fetchReleases(count);
+    });
+  }
+  ```
 - **Commands at the top, helpers at the bottom.** Keep each exported command
   short and high-level — it should read as the *what*. Push the *how* (complex
   steps, parsing, retries) into non-exported helper functions placed at the end
