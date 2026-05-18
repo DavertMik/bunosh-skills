@@ -78,6 +78,29 @@ Usage of the example above:
 bunosh deploy production --force --replicas 5 --tag v1.2.3
 ```
 
+### Booleans are *always* options, never positional params
+
+A boolean must never be a positional parameter. `deploy(dryRun = true)`
+generates a positional argument the user would have to pass as a bare string
+(`bunosh deploy true`) — confusing and undiscoverable. Put every boolean (and
+every other tunable knob) on the trailing options object so it becomes a real
+`--flag`:
+
+```js
+// ❌ boolean positional — produces `bunosh deploy true`
+export async function deploy(dryRun = true) {}
+
+// ✅ boolean on the options object — produces `bunosh deploy --dry-run`
+export async function deploy(options = { dryRun: false }) {
+  if (options.dryRun) { say('dry run'); return; }
+}
+```
+
+Default booleans to `false` so the presence of the flag turns the behaviour
+**on** (`--dry-run` ⇒ `options.dryRun === true`). A `true` default makes a flag
+that can't be switched off from the CLI. This rule is non-negotiable: any
+on/off behaviour is a `--flag`, not an argument.
+
 ## 3. JSDoc → help text
 
 The block comment directly above the function is its description. The first line
@@ -297,6 +320,18 @@ is written:
   command or helper. Only split out a helper when it has *its own* distinct
   responsibility — not to dodge "calling a command". This removes a whole layer
   of boilerplate and keeps the file compact.
+
+  The smallest, most common form of this mistake is a wrapper that exists only
+  to flip a boolean — also forbidden:
+
+  ```js
+  // ❌ wrapper just to pass a flag
+  export async function deploy() { await deployRun(false); }
+  async function deployRun(dryRun) { /* real work */ }
+
+  // ✅ one command, the flag is a CLI option (see §2)
+  export async function deploy(options = { dryRun: false }) { /* real work */ }
+  ```
 
   ```js
   // ❌ wrapper twin: releasePullRun exists only so two callers can reach it
