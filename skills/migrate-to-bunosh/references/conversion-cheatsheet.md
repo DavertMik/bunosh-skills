@@ -70,20 +70,25 @@ Note `ci` calls the kept `lint`/`test` via `npm run` rather than reimplementing
 |------|--------|
 | `echo "msg"` | `say('msg')` |
 | `echo "msg" >&2` / errors | `yell('msg')` |
-| `cmd1 && cmd2` | `await shell\`cmd1\`; ` then check / `task.stopOnFailures()` |
+| `cmd1 && cmd2` *(abort whole function on failure)* | `task.stopOnFailures();` at top, then two sequential `await shell` calls |
+| `if cmd; then ...; fi` *(branch on success)* | `if (await task.try(() => shell\`cmd\`)) { ... }` |
+| `cmd && next` *(only run next if cmd ok)* | `if (await task.try(() => shell\`cmd\`)) await next();` |
+| `cmd \|\| fallback` | `if (!(await task.try(() => shell\`cmd\`))) await fallback();` |
+| `cmd \|\| true` *(ignore failure)* | `await task.try(() => shell\`cmd\`);` *(don't read return)* |
 | `cmd1; cmd2` | two `await shell` calls |
 | `VAR=val cmd` | `` shell`cmd`.env({ VAR: 'val' }) `` |
 | `cd dir && cmd` | `` shell`cmd`.cwd('dir') `` |
 | `export VAR=val` (script-wide) | `.env({ VAR: 'val' })` on each shell call, or set once and reuse |
-| `$VApiAR` interpolation | JS template `${variable}` inside `` shell`...` `` |
+| `$VAR` interpolation | JS template `${variable}` inside `` shell`...` `` |
 | `$(cmd)` command substitution | `const r = await shell\`cmd\`; r.output.trim()` |
+| `[ -z "$VAR" ] && exit 1` *(required env)* | `assert(process.env.VAR, 'VAR required');` |
 | `if [ -f file ]; then` | `if (await Bun.file('file').exists())` |
 | `if [ -z "$x" ]; then` | `if (!x)` |
-| `for f in *.js; do` | `for (const f of (await shell\`ls *.js\`).output.trim().split('\n'))` |
+| `for f in *.js; do` | `for (const f of await new Bun.Glob('*.js').array()) { ... }` |
 | `while read line; do` | iterate `result.output.split('\n')` or `result.lines` |
 | `exit 1` | `return;` (Bunosh sets exit code) |
 | `set -e` | `task.stopOnFailures();` at top of function |
-| `$?` after a command | inspect `result.hasFailed` / `result.status` |
+| `$?` after a command, used for branching | `await task.try(() => cmd)` — don't inspect `hasFailed` just to `if` on it |
 | `trap ... EXIT` cleanup | run cleanup in a `finally`, or a separate command |
 | heredoc `cat <<EOF > f` | `writeToFile('f', line => { line\`...\`; })` |
 | `cp a b` | `copyFile('a', 'b')` or `Bun.write('b', Bun.file('a'))` |

@@ -146,10 +146,14 @@ Core principles while translating:
   `axios` → global `fetch`; `process.argv` parsing → function params + options.
   It is a normal ES module, so keep using real `import`s for genuine libraries
   (date math, AWS SDK, etc.) — don't reimplement those.
-- Tasks **don't throw**. Replace `set -e` / `&&` chaining /
-  `if [ $? -ne 0 ]` / try-catch-exit with either `task.stopOnFailures()` at the
-  top of the function (the faithful "abort on first error" port) or explicit
-  `if (res.hasFailed) return;` checks.
+- Tasks **don't throw**. Three patterns cover every bash failure idiom:
+  - `set -e` / `&&` chaining (abort on first failure) → `task.stopOnFailures();`
+    at the top of the function.
+  - `if cmd; then ...; fi` / `cmd && next` / `cmd || fallback` (branch on
+    success) → `if (await task.try(() => shell\`cmd\`)) { ... }`. Do not
+    inspect `res.hasFailed` to drive an `if` — use `task.try`, which is shorter
+    and doesn't add to the failure count.
+  - `[ -z "$VAR" ] && exit 1` / required preconditions → `assert(cond, msg)`.
 - Replace `exit N` / `process.exit` with early `return`. Bunosh owns the exit
   code.
 - `echo` → `say()`; prominent banners → `yell()`; prompts → `await ask()`.

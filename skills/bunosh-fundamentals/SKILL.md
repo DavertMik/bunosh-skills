@@ -254,11 +254,20 @@ await task('Build image', async () => {
 ```
 
 `task.try(fn)` (or `task.try(name, fn)`) runs silently and returns a boolean —
-ideal for probes:
+**this is the idiomatic way to branch on whether a command succeeded.** Any
+time you'd write bash `if cmd; then ... fi` or `cmd && next` or `cmd || true`,
+reach for `task.try`:
 
 ```js
 const dbUp = await task.try(() => shell`nc -z localhost 5432`);
 if (!dbUp) { say('db down, using fallback'); }
+
+if (await task.try(() => fetch('http://api/health'))) {
+  await deploy();
+} else {
+  yell('api down — aborting');
+  return;
+}
 ```
 
 `task.try` fully isolates failures from the exit code. Any `shell`/`fetch`/
@@ -267,6 +276,10 @@ failed task — the run still exits `0` if everything outside the try succeeded.
 `task.stopOnFailures()` is also suppressed inside a `try`; an inner failure
 will never call `process.exit(1)`. The `true`/`false` return is your only
 signal.
+
+**Do not** inspect `TaskResult.hasFailed` to drive a conditional when all you
+need is a yes/no. `await task.try(() => cmd)` is shorter, doesn't pollute the
+failure count, and reads like the bash you're translating from.
 
 Output control: `task.silent(fn)` runs one task without output;
 `task.silence()` / `task.prints()` toggle output globally.
@@ -307,7 +320,35 @@ let Bunosh own the exit code. For preconditions, use `assert(cond, message)`
 (see §4) — it records a failure (counts toward exit 1) without an `if (...)
 return` dance, and under `task.stopOnFailures()` it exits at that line.
 
-## 7. Project layout & invocation
+## 7. Bash → Bunosh idiom map
+
+When porting bash, use the bunosh-native form on the right — don't transliterate.
+
+| Bash | Bunosh |
+|------|--------|
+| `if cmd; then ... fi` | `if (await task.try(() => shell\`cmd\`)) { ... }` |
+| `cmd && next` | `if (await task.try(() => shell\`cmd\`)) await next();` |
+| `cmd \|\| fallback` | `if (!(await task.try(() => shell\`cmd\`))) await fallback();` |
+| `cmd \|\| true` | `await task.try(() => shell\`cmd\`);` *(ignore result)* |
+| `set -e` | `task.stopOnFailures();` at top of the command |
+| `set +e` *(whole script)* | `task.ignoreFailures();` |
+| `[ -z "$VAR" ] && exit 1` | `assert(process.env.VAR, 'VAR required');` |
+| `[ -f path ]` | `await Bun.file(path).exists()` |
+| `name=$(jq -r .name pkg.json)` | `const { name } = await Bun.file('pkg.json').json();` |
+| `for f in src/*.js; do ...; done` | `for (const f of await new Bun.Glob('src/*.js').array()) { ... }` |
+| `cd dir && cmd` | `await shell\`cmd\`.cwd('dir');` |
+| `VAR=x cmd` | `await shell\`cmd\`.env({ VAR: 'x' });` |
+| `echo "..."` | `say('...');` |
+| `>&2 echo "fatal: ..."` | `yell('FATAL: ...');` |
+| `read -p "name? " name` | `const name = await ask('name?');` |
+| `exit 1` | `return;` *(after `assert` or in `stopOnFailures` mode)* |
+
+**Anti-pattern**: don't reproduce `if [ $? -ne 0 ]` by inspecting
+`TaskResult.hasFailed` inside an `if`. That's the bash control-flow leaking
+through. Use `task.try` for "did it work?" and `assert` for "must it have
+worked?".
+
+## 8. Project layout & invocation
 
 - Default file: `Bunoshfile.js` in the working directory.
 - `Bunoshfile.<ns>.js` registers **every exported function** in that file under
