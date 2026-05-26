@@ -261,6 +261,13 @@ const dbUp = await task.try(() => shell`nc -z localhost 5432`);
 if (!dbUp) { say('db down, using fallback'); }
 ```
 
+`task.try` fully isolates failures from the exit code. Any `shell`/`fetch`/
+`task`/`assert` failure inside the callback is recorded as a warning, never a
+failed task — the run still exits `0` if everything outside the try succeeded.
+`task.stopOnFailures()` is also suppressed inside a `try`; an inner failure
+will never call `process.exit(1)`. The `true`/`false` return is your only
+signal.
+
 Output control: `task.silent(fn)` runs one task without output;
 `task.silence()` / `task.prints()` toggle output globally.
 
