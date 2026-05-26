@@ -123,7 +123,7 @@ Pull helpers from `global.bunosh` at the top of the file (globals are used
 instead of imports so the single-file binary works everywhere):
 
 ```js
-const { shell, fetch, writeToFile, copyFile, task, ai } = global.bunosh;
+const { shell, fetch, writeToFile, copyFile, task, ai, assert } = global.bunosh;
 const { say, ask, yell } = global.bunosh;
 ```
 
@@ -192,6 +192,22 @@ const out = await ai('Summarize these commits: ' + log.output, {
 
 `ai` needs `AI_MODEL` plus a provider key (`OPENAI_API_KEY` /
 `ANTHROPIC_API_KEY` / `GROQ_API_KEY`) in the environment.
+
+### `assert` — precondition guards
+
+```js
+assert(process.env.TOKEN, 'TOKEN must be set');
+assert(await Bun.file('dist/bundle.js').exists(), 'bundle not built');
+```
+
+`assert(cond, message)` is the idiomatic precondition check. When `cond` is
+falsy it prints a red `✗ <message>` line, records a failed task (which
+contributes to the final exit code 1), and — under `task.stopOnFailures()` —
+exits the process at that line. In default mode `assert` does **not** throw, so
+the function keeps running; if you need a hard stop, follow the assert with
+`return`, or call `task.stopOnFailures()` at the top of the command. Prefer
+`assert` over `if (!cond) { say(...); return; }` when the failure should
+actually surface as a failed command, not a silent skip.
 
 ### I/O
 
@@ -280,7 +296,9 @@ Mode controls:
 - Under a test runner / `NODE_ENV=test`, exit code is forced to `0`.
 
 `return` early to stop a command; never call `process.exit()` in a Bunoshfile —
-let Bunosh own the exit code.
+let Bunosh own the exit code. For preconditions, use `assert(cond, message)`
+(see §4) — it records a failure (counts toward exit 1) without an `if (...)
+return` dance, and under `task.stopOnFailures()` it exits at that line.
 
 ## 7. Project layout & invocation
 

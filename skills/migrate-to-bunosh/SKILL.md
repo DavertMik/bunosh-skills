@@ -159,6 +159,9 @@ Core principles while translating:
   readable: flatten nesting with early returns, name things, drop the bash
   arg-parsing boilerplate. If the original aborts on error, the port must too
   (`task.stopOnFailures()`).
+- Guards like `[ -z "$VAR" ] && exit 1` or `if not condition: sys.exit(1)`
+  translate directly to `assert(cond, 'message')` — it records the failure and,
+  combined with `task.stopOnFailures()`, exits at that line.
 - Compactness check: if a ported function is materially longer or harder to
   follow than the original, you're transliterating, not rewriting — step back
   and express it the way you'd write it fresh in JS.
@@ -169,7 +172,7 @@ Layout, top to bottom: globals → exported commands (the readable "table of
 contents") → helper functions.
 
 ```js
-const { shell, fetch, writeToFile, copyFile, task, ai } = global.bunosh;
+const { shell, fetch, writeToFile, copyFile, task, ai, assert } = global.bunosh;
 const { say, ask, yell } = global.bunosh;
 
 const REGISTRY = 'docker.io/acme';      // module-level constants near the top
